@@ -9,6 +9,13 @@ const getApiBaseUrl = (): string => {
   if (envUrl && envUrl.trim()) {
     return envUrl.trim().replace(/\/+$/, "");
   }
+  // Safety net for production hosts if the env var was missing at build time.
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "erp.zamirzac.com" || host.endsWith(".vercel.app")) {
+      return "https://erp01-api.zamirzac.com/api/v1";
+    }
+  }
   return "http://127.0.0.1:8000/api/v1";
 };
 
