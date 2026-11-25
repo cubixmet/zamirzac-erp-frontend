@@ -33,6 +33,8 @@ import { CompanyLogo } from "@/components/erp/CompanyLogo";
 import { MobileBottomNav, PwaBanners } from "@/components/layout/AppChrome";
 import { canAccessModule, useCurrentRole } from "@/lib/access";
 import { getStoredUser, getAccessToken, getRefreshToken, authApi, notificationsApi } from "@/lib/api";
+import { useNonGstMode } from "@/hooks/use-non-gst-mode";
+import { toast } from "sonner";
 
 function SidebarContent({
   collapsed,
@@ -185,13 +187,27 @@ export function AppShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [exitingNonGst, setExitingNonGst] = useState(false);
   const role = useCurrentRole();
+  const { nonGstMode } = useNonGstMode();
 
   const [displayName, setDisplayName] = useState(() => currentUser.name);
   const [displayEmail, setDisplayEmail] = useState(() => currentUser.email);
   const [displayInitials, setDisplayInitials] = useState(() => currentUser.initials);
 
   const navigate = useNavigate();
+
+  const handleExitNonGst = async () => {
+    try {
+      setExitingNonGst(true);
+      await authApi.exitNonGstMode();
+      toast.success("Switched to Normal Mode");
+    } catch (err: any) {
+      toast.error(err?.message || "Could not switch to Normal Mode");
+    } finally {
+      setExitingNonGst(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -278,7 +294,17 @@ export function AppShell({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
-          <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+          <header
+            className={cn(
+              "sticky top-0 z-40 border-b bg-background/95 backdrop-blur",
+              nonGstMode ? "border-amber-500/50" : "border-border",
+            )}
+          >
+            {nonGstMode ? (
+              <div className="bg-amber-600 px-4 py-1 text-center text-[11px] font-semibold tracking-wide text-white sm:px-6">
+                Non-GST Mode active — Non-GST bills are visible here and excluded from Normal Mode GST reports
+              </div>
+            ) : null}
             <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
               <button
                 className="lg:hidden"
@@ -296,6 +322,21 @@ export function AppShell({
               </div>
 
               <div className="ml-auto flex items-center gap-2">
+                {nonGstMode ? (
+                  <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1">
+                    <Badge className="bg-amber-600 text-white hover:bg-amber-600">Non-GST Mode</Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 border-amber-600/40 text-amber-900 dark:text-amber-100"
+                      disabled={exitingNonGst}
+                      onClick={handleExitNonGst}
+                    >
+                      {exitingNonGst ? "Switching…" : "Switch to Normal Mode"}
+                    </Button>
+                  </div>
+                ) : null}
+
                 <GlobalSearch />
 
                 <DropdownMenu>

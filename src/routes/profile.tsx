@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { APP_TITLE } from "@/config/company";
 import { authApi, getStoredUser, getAccessToken, getRefreshToken, type AuthUser } from "@/lib/api";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useNonGstMode } from "@/hooks/use-non-gst-mode";
+import { Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -47,6 +48,12 @@ function ProfilePage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const { isSuperuser, nonGstMode } = useNonGstMode();
+  const [nonGstPassword, setNonGstPassword] = useState("");
+  const [showNonGstPassword, setShowNonGstPassword] = useState(false);
+  const [enteringNonGst, setEnteringNonGst] = useState(false);
+  const [exitingNonGst, setExitingNonGst] = useState(false);
 
   const loadProfile = async () => {
     try {
@@ -135,6 +142,36 @@ function ProfilePage() {
       toast.error(err?.message || "Failed to change password");
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleEnterNonGst = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nonGstPassword.startsWith("****")) {
+      toast.error("Enter **** followed by your account password");
+      return;
+    }
+    try {
+      setEnteringNonGst(true);
+      await authApi.enterNonGstMode(nonGstPassword);
+      setNonGstPassword("");
+      toast.success("Non-GST Mode activated");
+    } catch (err: any) {
+      toast.error(err?.message || "Could not enter Non-GST Mode");
+    } finally {
+      setEnteringNonGst(false);
+    }
+  };
+
+  const handleExitNonGst = async () => {
+    try {
+      setExitingNonGst(true);
+      await authApi.exitNonGstMode();
+      toast.success("Switched to Normal Mode");
+    } catch (err: any) {
+      toast.error(err?.message || "Could not switch to Normal Mode");
+    } finally {
+      setExitingNonGst(false);
     }
   };
 
@@ -233,7 +270,63 @@ function ProfilePage() {
           </Panel>
         </TabsContent>
 
-        <TabsContent value="security" className="mt-4">
+        <TabsContent value="security" className="mt-4 space-y-4">
+          {isSuperuser ? (
+            <Panel
+              title="Non-GST Mode"
+              className={nonGstMode ? "max-w-xl border-amber-500/40 bg-amber-500/5" : "max-w-xl"}
+            >
+              <div className="mb-4 flex items-start gap-2 text-sm text-muted-foreground">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                <p>
+                  Superuser only. Enter <span className="font-mono text-foreground">****</span> followed by
+                  your account password to unlock Non-GST bills. Normal Mode GST reports stay unaffected.
+                </p>
+              </div>
+              {nonGstMode ? (
+                <div className="space-y-3">
+                  <Badge className="bg-amber-600 text-white hover:bg-amber-600">Non-GST Mode active</Badge>
+                  <div>
+                    <Button type="button" variant="outline" disabled={exitingNonGst} onClick={handleExitNonGst}>
+                      {exitingNonGst ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                      Switch to Normal Mode
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <form className="space-y-4" onSubmit={handleEnterNonGst}>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nongst">Unlock password</Label>
+                    <div className="relative">
+                      <Input
+                        id="nongst"
+                        type={showNonGstPassword ? "text" : "password"}
+                        value={nonGstPassword}
+                        onChange={(e) => setNonGstPassword(e.target.value)}
+                        placeholder="****your-password"
+                        className="pr-10 font-mono"
+                        required
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNonGstPassword((v) => !v)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showNonGstPassword ? "Hide password" : "Show password"}
+                      >
+                        {showNonGstPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <Button type="submit" disabled={enteringNonGst}>
+                    {enteringNonGst ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                    {enteringNonGst ? "Unlocking…" : "Enter Non-GST Mode"}
+                  </Button>
+                </form>
+              )}
+            </Panel>
+          ) : null}
+
           <Panel title="Change password" className="max-w-xl">
             <form className="space-y-4" onSubmit={handlePasswordSubmit}>
               <div className="space-y-1.5">

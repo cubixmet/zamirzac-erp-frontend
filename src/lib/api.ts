@@ -31,6 +31,8 @@ export interface AuthUser {
   branch_id: number | null;
   is_staff: boolean;
   is_superuser: boolean;
+  /** Superuser-only Non-GST Mode claim mirrored from the JWT. */
+  non_gst_mode?: boolean | undefined;
 }
 
 export interface PaginatedResponse<T> {
@@ -438,6 +440,32 @@ export const authApi = {
   changePassword: async (data: { old_password?: string; current_password?: string; new_password: string }): Promise<{ success: boolean; message: string }> => {
     return api.post<{ success: boolean; message: string }>("/auth/change-password/", data);
   },
+
+  enterNonGstMode: async (password: string): Promise<LoginResponse> => {
+    const refresh = getRefreshToken();
+    const data = await apiRequest<LoginResponse>("/auth/enter-non-gst/", {
+      method: "POST",
+      body: JSON.stringify({ password, refresh }),
+    });
+    setSession(data.access, data.refresh, { ...data.user, non_gst_mode: true });
+    return data;
+  },
+
+  exitNonGstMode: async (): Promise<LoginResponse> => {
+    const refresh = getRefreshToken();
+    const data = await apiRequest<LoginResponse>("/auth/exit-non-gst/", {
+      method: "POST",
+      body: JSON.stringify({ refresh }),
+    });
+    setSession(data.access, data.refresh, { ...data.user, non_gst_mode: false });
+    return data;
+  },
+};
+
+/** True when the cached session belongs to a superuser in Non-GST Mode. */
+export const isNonGstMode = (): boolean => {
+  const user = getStoredUser();
+  return Boolean(user?.is_superuser && user?.non_gst_mode);
 };
 
 export interface AttendancePunchPayload {

@@ -14,6 +14,7 @@ import { inr } from "@/lib/format";
 import { dayOffset } from "@/data/finance";
 import { lineAmount, lineTax, type Invoice } from "@/data/sales";
 import { api, salesApi } from "@/lib/api";
+import { useNonGstMode } from "@/hooks/use-non-gst-mode";
 import { companyConfig as company } from "@/config/company";
 import { AttachmentPanel, DocumentEditor, DocumentSheet, Field, inr2 } from "./shared";
 
@@ -171,6 +172,7 @@ export function SalesOverview() {
 
 export function SalesInvoices() {
   const nav = useNavigate();
+  const { nonGstMode } = useNonGstMode();
   const [rows, setRows] = useState<(Invoice & { backendId?: number })[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
@@ -248,29 +250,35 @@ export function SalesInvoices() {
   return (
     <>
       <SectionHeader
-        title="Sales invoices"
-        description="GST tax invoices raised to customers."
+        title={nonGstMode ? "Non-GST bills" : "Sales invoices"}
+        description={
+          nonGstMode
+            ? "Non-GST bills visible only in Non-GST Mode. Excluded from GST returns and Normal Mode totals."
+            : "GST tax invoices raised to customers."
+        }
         actions={
           <>
             <ExportButtons />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                const tid = toast.loading("Dispatching batch payment reminders for invoices with balance...");
-                try {
-                  const res = await salesApi.sendBatchReminders(1.0);
-                  toast.success(`Dispatched ${res.sent_count} reminders (${res.failed_count} failed).`, { id: tid });
-                } catch (err: any) {
-                  toast.error(err?.message || "Failed to send batch reminders", { id: tid });
-                }
-              }}
-            >
-              <Bell className="size-4" /> Send Reminders
-            </Button>
+            {!nonGstMode ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const tid = toast.loading("Dispatching batch payment reminders for invoices with balance...");
+                  try {
+                    const res = await salesApi.sendBatchReminders(1.0);
+                    toast.success(`Dispatched ${res.sent_count} reminders (${res.failed_count} failed).`, { id: tid });
+                  } catch (err: any) {
+                    toast.error(err?.message || "Failed to send batch reminders", { id: tid });
+                  }
+                }}
+              >
+                <Bell className="size-4" /> Send Reminders
+              </Button>
+            ) : null}
             <Button size="sm" asChild>
               <Link to="/sales/$section" params={{ section: "new-invoice" }}>
-                <Plus className="size-4" /> New invoice
+                <Plus className="size-4" /> {nonGstMode ? "New Non-GST bill" : "New invoice"}
               </Link>
             </Button>
           </>
@@ -384,9 +392,17 @@ export function SalesInvoices() {
 
 export function NewInvoice() {
   const nav = useNavigate();
+  const { nonGstMode } = useNonGstMode();
   return (
     <>
-      <SectionHeader title="New sales invoice" description="Default prices are filled in automatically; users with price-override permission can change the selling price." />
+      <SectionHeader
+        title={nonGstMode ? "New Non-GST bill" : "New sales invoice"}
+        description={
+          nonGstMode
+            ? "Creates a Non-GST bill (NG-####) with zero tax. Hidden from Normal Mode GST reports."
+            : "Default prices are filled in automatically; users with price-override permission can change the selling price."
+        }
+      />
       <DocumentEditor mode="invoice" onSaved={() => nav({ to: "/sales/$section", params: { section: "invoices" } })} />
     </>
   );

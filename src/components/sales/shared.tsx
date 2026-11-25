@@ -1,7 +1,7 @@
 import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
 import { Download, Eye, FileArchive, FileImage, FileSpreadsheet, FileText, Lock, Paperclip, Plus, Printer, RotateCcw, Send, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, isNonGstMode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { EmptyState, Panel } from "@/components/erp/primitives";
 import { Button } from "@/components/ui/button";
@@ -307,17 +307,19 @@ export function DocumentEditor({ mode, initial, onSaved }: {
         if (!itemId || isNaN(itemId)) {
           throw new Error(`Item on line ${idx + 1} (${l.name || l.code}) is not registered in the database catalog.`);
         }
+        const nonGst = mode === "invoice" && isNonGstMode();
         return {
           item: itemId,
           description: l.description || l.name || prod?.name || "Item",
           quantity: Number(l.qty) || 1,
           unit_price: Number(l.rate) || 0,
           discount_percentage: Number(l.discount) || 0,
-          tax_rate: Number(l.tax) || 18,
+          tax_rate: nonGst ? 0 : Number(l.tax) || 18,
         };
       });
 
       if (mode === "invoice") {
+        const nonGst = isNonGstMode();
         const payload = {
           customer: custBackendId,
           invoice_date: docDate,
@@ -326,10 +328,15 @@ export function DocumentEditor({ mode, initial, onSaved }: {
           notes: notesVal,
           status: isDraft ? "Draft" : (received >= t.grand ? "Paid" : received > 0 ? "Partial" : "Pending"),
           received_amount: Number(received) || 0,
+          is_non_gst: nonGst,
           lines: linesPayload,
         };
         const created = await api.post<any>("/sales/invoices/", payload);
-        toast.success(isDraft ? "Draft invoice saved" : `Invoice ${created.code || "INV"} saved to database!`);
+        toast.success(
+          isDraft
+            ? `Draft ${nonGst ? "Non-GST " : ""}invoice saved`
+            : `${nonGst ? "Non-GST invoice" : "Invoice"} ${created.code || (nonGst ? "NG" : "INV")} saved to database!`,
+        );
         onSaved?.();
       } else {
         const payload = {
