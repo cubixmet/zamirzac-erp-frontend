@@ -12,6 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // On Vercel, pin Nitro to the vercel preset so client routes are handled by the server
+  // function instead of returning static 404s. Local/dev keeps the default preset.
+  nitro: process.env.VERCEL ? { preset: "vercel" } : true,
   // Pre-bundle cmdk (global search) at startup so a late dependency re-optimisation can't load a second React copy.
   vite: { optimizeDeps: { include: ["cmdk"] } },
 });
